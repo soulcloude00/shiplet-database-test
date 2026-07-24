@@ -107,8 +107,9 @@ const page = `<!doctype html>
   <script>
     const form=document.querySelector('#form'),input=document.querySelector('#body'),state=document.querySelector('#state'),notes=document.querySelector('#notes');
     const escapeHtml=value=>value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
-    async function load(){const response=await fetch('./api/notes');const data=await response.json();state.textContent=data.notes.length?'':'No notes yet.';notes.innerHTML=data.notes.map(note=>'<article class="note"><p>'+escapeHtml(note.body)+'</p><time>'+new Date(note.created_at).toLocaleString()+'</time></article>').join('')}
-    form.addEventListener('submit',async event=>{event.preventDefault();state.textContent='Saving…';const response=await fetch('./api/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:input.value})});if(response.ok){input.value='';await load()}else{const data=await response.json();state.textContent=data.error||'Could not save.'}});
+    const apiBase=location.pathname.replace(/\\/$/,'')+'/api/notes';
+    async function load(){const response=await fetch(apiBase);const data=await response.json();state.textContent=data.notes.length?'':'No notes yet.';notes.innerHTML=data.notes.map(note=>'<article class="note"><p>'+escapeHtml(note.body)+'</p><time>'+new Date(note.created_at).toLocaleString()+'</time></article>').join('')}
+    form.addEventListener('submit',async event=>{event.preventDefault();state.textContent='Saving…';const response=await fetch(apiBase,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:input.value})});if(response.ok){input.value='';await load()}else{const data=await response.json();state.textContent=data.error||'Could not save.'}});
     load().catch(()=>state.textContent='Database connection failed.');
   </script>
 </body>
