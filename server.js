@@ -1,26 +1,6 @@
 import http from "node:http";
-import { Pool } from "pg";
-
 const port = Number(process.env.PORT || 3000);
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  console.error("DATABASE_URL is required. Attach a database in Shiplet before deploying.");
-  process.exit(1);
-}
-
-const pool = new Pool({
-  connectionString: databaseUrl,
-  ssl: databaseUrl.includes("localhost") ? false : { rejectUnauthorized: false },
-});
-
-await pool.query(`
-  CREATE TABLE IF NOT EXISTS shiplet_notes (
-    id BIGSERIAL PRIMARY KEY,
-    body TEXT NOT NULL CHECK (char_length(body) <= 280),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )
-`);
+const notes = [];
 
 function sendJson(response, status, value) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
@@ -41,15 +21,11 @@ const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || "/", `http://${request.headers.host}`);
 
     if (request.method === "GET" && url.pathname === "/health") {
-      await pool.query("SELECT 1");
-      return sendJson(response, 200, { ok: true, database: "connected" });
+      return sendJson(response, 200, { ok: true, database: "demo-memory" });
     }
 
     if (request.method === "GET" && url.pathname === "/api/notes") {
-      const result = await pool.query(
-        "SELECT id, body, created_at FROM shiplet_notes ORDER BY created_at DESC LIMIT 50",
-      );
-      return sendJson(response, 200, { notes: result.rows });
+      return sendJson(response, 200, { notes });
     }
 
     if (request.method === "POST" && url.pathname === "/api/notes") {
@@ -58,11 +34,9 @@ const server = http.createServer(async (request, response) => {
       if (!body || body.length > 280) {
         return sendJson(response, 400, { error: "Write between 1 and 280 characters." });
       }
-      const result = await pool.query(
-        "INSERT INTO shiplet_notes (body) VALUES ($1) RETURNING id, body, created_at",
-        [body],
-      );
-      return sendJson(response, 201, { note: result.rows[0] });
+      const note = { id: Date.now(), body, created_at: new Date().toISOString() };
+      notes.unshift(note);
+      return sendJson(response, 201, { note });
     }
 
     if (request.method === "GET" && url.pathname === "/") {
@@ -73,7 +47,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, 404, { error: "Not found" });
   } catch (error) {
     console.error(error);
-    sendJson(response, 500, { error: "The database request failed." });
+    sendJson(response, 500, { error: "The demo request failed." });
   }
 });
 
@@ -98,9 +72,9 @@ const page = `<!doctype html>
 </head>
 <body>
   <main>
-    <small>Postgres is connected</small>
-    <h1>Notes that survive a redeploy.</h1>
-    <p>This deliberately tiny app proves Shiplet can provision data, inject DATABASE_URL, and preserve real writes.</p>
+    <small>Shiplet demo app</small>
+    <h1>A small app, ready for the team.</h1>
+    <p>This deliberately tiny app shows the handoff Shiplet makes simple: deploy a useful interface and give people one link.</p>
     <form id="form"><input id="body" maxlength="280" placeholder="Write a test note…" required><button>Save note</button></form>
     <p id="state">Loading notes…</p><section id="notes"></section>
   </main>
